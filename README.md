@@ -2,6 +2,17 @@
 
 Verifies IBM BAW server-side JavaScript transform functions (Rhino engine) against the business object definitions in your `.xsd` files. Two layers:
 
+## Downloading XSDs from a BAW server
+
+`download-xsds.js` pulls every business object XSD for a branch:
+
+```bash
+node download-xsds.js <baseUrl> <branchId> [outDir] [--user user:pass] [--only A,B] [--insecure]
+node download-xsds.js https://baw.example.com:9443 2063.fe0f0969-81df-4d09-b816-afd39dcfe8e8 ./xsds --user admin:pass --insecure
+```
+
+It lists type names from `/rest/bpm/wle/v1/assets?branchId=...`, then fetches each from `/WebPD/jsp/ViewSchema.jsp?type=<name>&version=<branchId>` into `<outDir>/<name>.xsd`. Credentials can also come from `BAW_USER`/`BAW_PASSWORD` env vars. Responses that aren't XSDs (e.g. a login page) are skipped with a warning. Use `--insecure` for self-signed certificates.
+
 ## Code generation
 
 `generate.js` writes the transform for you from the XSDs, including nested business objects and BAW lists:
@@ -13,7 +24,7 @@ node generate.js CustomerWS Customer examples -o examples/convertCustomerWsToCus
 
 Nested complex types get their own helper converters (generated recursively and reused); `maxOccurs="unbounded"` properties become `tw.object.listOf.X` with an `insertIntoList` loop; unmatched properties are flagged with `// TODO` / `// NOTE` comments. Generated code is ES5/Rhino-safe and passes `validate.js`. See `examples/` for a nested Customer/CustomerWS demo with tests.
 
-1. **Static analysis** (`validate.js`) — parses the script as ES5 (Rhino-compatible) and checks every `new tw.object.X()` and every property read/write against the XSD types. No execution needed; reports all errors at once with line numbers and fix hints.
+1. **Static analysis** (`validate.js`) — parses the script for Rhino compatibility (`var`/`let`/`const` allowed; arrow functions, template literals, classes, destructuring, and spread are flagged) and checks every `new tw.object.X()` and every property read/write against the XSD types. No execution needed; reports all errors at once with line numbers and fix hints.
 2. **Runtime unit tests** (`run-tests.js`) — loads the script into a sandbox with a strict mock `tw.object` (built from the XSDs, mimicking BAW's typed business objects: unknown properties/types throw, `xs:` primitive types are checked). Runs test cases from a JSON spec.
 
 ## Usage

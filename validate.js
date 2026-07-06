@@ -26,20 +26,36 @@ function validate(scriptPath, xsdDir) {
   const err = (loc, msg, hint) =>
     errors.push({ file, line: loc.line, col: loc.column + 1, msg, hint });
 
-  // --- 1. Parse as ES5 (Rhino in BAW is ES5-level) ---
+  // --- 1. Parse as ES6 (BAW's Rhino supports var/let/const), then flag
+  //        constructs Rhino in BAW does NOT reliably support ---
   const comments = [];
   let ast;
   try {
     ast = acorn.parse(src, {
-      ecmaVersion: 5, locations: true,
+      ecmaVersion: 6, locations: true,
       onComment: (block, text, start, end, startLoc) => {
         if (block) comments.push({ text, end, line: startLoc.line });
       },
     });
   } catch (e) {
-    err(e.loc, `Syntax error (not Rhino/ES5 compatible): ${e.message.replace(/\s*\(\d+:\d+\)$/, '')}`);
+    err(e.loc, `Syntax error (not Rhino compatible): ${e.message.replace(/\s*\(\d+:\d+\)$/, '')}`);
     return { errors, types };
   }
+
+  const UNSUPPORTED = {
+    ArrowFunctionExpression: 'arrow functions (=>)',
+    TemplateLiteral: 'template literals (`...`)',
+    ClassDeclaration: 'classes',
+    ClassExpression: 'classes',
+    ObjectPattern: 'destructuring',
+    ArrayPattern: 'destructuring',
+    SpreadElement: 'spread syntax (...)',
+    RestElement: 'rest parameters (...)',
+  };
+  walk.full(ast, (node) => {
+    if (UNSUPPORTED[node.type])
+      err(node.loc.start, `${UNSUPPORTED[node.type]} are not supported by BAW's Rhino engine — use ES5 syntax`);
+  });
 
   // --- Per-function scopes: JSDoc @param/@returns from the doc block just above each function ---
   const scopes = new Map(); // funcNode -> { varTypes: {}, jsdocReturn: string|null }
