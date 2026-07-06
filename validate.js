@@ -170,7 +170,14 @@ if (require.main === module) {
     process.exit(2);
   }
   const xsdDir = process.argv[3] || path.dirname(path.resolve(scriptPath));
-  const { errors, types } = validate(scriptPath, xsdDir);
+  let result;
+  try {
+    result = validate(scriptPath, xsdDir);
+  } catch (e) {
+    console.error(`XSD ERROR: ${e.message}`);
+    process.exit(1);
+  }
+  const { errors, types } = result;
 
   console.log(`Loaded types: ${Object.keys(types).map(t => `${t} (${Object.keys(types[t].properties).join(', ')})`).join(' | ')}\n`);
   if (errors.length === 0) {

@@ -122,5 +122,10 @@ if (require.main === module) {
     console.error('Usage: node run-tests.js <script.js> <tests.json> [xsdDir]');
     process.exit(2);
   }
-  run(scriptPath, specPath, xsdDirArg || path.dirname(path.resolve(scriptPath)));
+  try {
+    run(scriptPath, specPath, xsdDirArg || path.dirname(path.resolve(scriptPath)));
+  } catch (e) {
+    console.error(`XSD ERROR: ${e.message}`);
+    process.exit(1);
+  }
 }

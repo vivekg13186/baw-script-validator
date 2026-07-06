@@ -130,8 +130,14 @@ if (require.main === module) {
     console.error('Usage: node generate.js <SourceType> <TargetType> [xsdDir] [-o out.js]');
     process.exit(2);
   }
-  const types = loadTypes(xsdDir || '.');
-  const code = generate(sourceType, targetType, types);
+  let code;
+  try {
+    const types = loadTypes(xsdDir || '.');
+    code = generate(sourceType, targetType, types);
+  } catch (e) {
+    console.error(`ERROR: ${e.message}`);
+    process.exit(1);
+  }
   if (outFile) {
     fs.writeFileSync(outFile, code);
     console.log(`Wrote ${outFile}`);
