@@ -44,6 +44,17 @@ Or for the sample: `npm run validate` and `npm test`.
 - Local variable types come from `var x = new tw.object.TypeName()`.
 - `@returns {Type}` is checked against the type of the returned variable.
 
+## Generating test specs
+
+`generate-test.js` scaffolds a test spec from the XSDs — sample input values for every property (nested objects and lists included), expected values derived by name-matched mapping, plus an empty-input case:
+
+```bash
+node generate-test.js <functionName> <InputType> <OutputType> [xsdDir] [-o out.json]
+node generate-test.js convertAddressWsToAddress AddressWS Address   # -> test/convertAddressWsToAddress.test.json
+```
+
+Defaults: types from `./xsd`, output to `./test/<functionName>.test.json`. Review the expected values if your transform has custom logic beyond property name matching.
+
 ## Test spec format
 
 ```json

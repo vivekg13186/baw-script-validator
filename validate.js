@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const acorn = require('acorn');
 const walk = require('acorn-walk');
-const { loadTypes, suggest } = require('./lib/xsd');
+const { loadTypes, suggest, defaultXsdDir } = require('./lib/xsd');
 
 function validate(scriptPath, xsdDir) {
   const src = fs.readFileSync(scriptPath, 'utf8');
@@ -185,7 +185,7 @@ if (require.main === module) {
     console.error('Usage: node validate.js <script.js> [xsdDir]');
     process.exit(2);
   }
-  const xsdDir = process.argv[3] || path.dirname(path.resolve(scriptPath));
+  const xsdDir = process.argv[3] || defaultXsdDir(scriptPath);
   let result;
   try {
     result = validate(scriptPath, xsdDir);

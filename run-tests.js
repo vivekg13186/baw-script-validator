@@ -20,7 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { loadTypes } = require('./lib/xsd');
+const { loadTypes, defaultXsdDir } = require('./lib/xsd');
 const { buildTw, makeTyped } = require('./lib/mock-tw');
 
 function extractLine(err, scriptName) {
@@ -123,7 +123,7 @@ if (require.main === module) {
     process.exit(2);
   }
   try {
-    run(scriptPath, specPath, xsdDirArg || path.dirname(path.resolve(scriptPath)));
+    run(scriptPath, specPath, xsdDirArg || defaultXsdDir(scriptPath));
   } catch (e) {
     console.error(`XSD ERROR: ${e.message}`);
     process.exit(1);

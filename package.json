@@ -3,8 +3,18 @@
   "version": "1.0.0",
   "description": "Static validation + Rhino-style unit testing for IBM BAW server-side JavaScript transforms, driven by XSD business object definitions",
   "scripts": {
-    "validate": "node validate.js sample.js",
-    "test": "node run-tests.js sample.js sample.test.json"
+    "validate": "node validate.js test/sample.js xsd",
+    "test": "node run-tests.js test/sample.js test/sample.test.json xsd",
+    "generate": "node generate.js",
+    "generate:test": "node generate-test.js",
+    "download": "node download-xsds.js"
+  },
+  "bin": {
+    "baw-validate": "./validate.js",
+    "baw-run-tests": "./run-tests.js",
+    "baw-generate": "./generate.js",
+    "baw-generate-test": "./generate-test.js",
+    "baw-download-xsds": "./download-xsds.js"
   },
   "dependencies": {
     "acorn": "^8.17.0",
