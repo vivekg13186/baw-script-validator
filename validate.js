@@ -2,24 +2,24 @@
 /**
  * Static validator for IBM BAW server-side JavaScript (Rhino engine).
  *
- * Checks a transform script against business object definitions in .xsd files:
+ * Checks a transform script against business object definitions (JSON, from download-types.js):
  *   1. Syntax must be Rhino/ES5-compatible.
- *   2. new tw.object.X() — X must be a type defined in an XSD.
+ *   2. new tw.object.X() — X must be a defined business object type.
  *   3. obj.prop reads/writes — prop must exist on the variable's resolved type.
  *      Variable types come from JSDoc @param/@returns tags and from
  *      `var x = new tw.object.X()` assignments.
  *
- * Usage: node validate.js <script.js> [xsdDir]   (xsdDir defaults to script's dir)
+ * Usage: node validate.js <script.js> [typesDir]  (defaults to script's dir, then ./types)
  */
 const fs = require('fs');
 const path = require('path');
 const acorn = require('acorn');
 const walk = require('acorn-walk');
-const { loadTypes, suggest, defaultXsdDir } = require('./lib/xsd');
+const { loadTypes, suggest, defaultTypesDir } = require('./lib/types');
 
-function validate(scriptPath, xsdDir) {
+function validate(scriptPath, typesDir) {
   const src = fs.readFileSync(scriptPath, 'utf8');
-  const types = loadTypes(xsdDir);
+  const types = loadTypes(typesDir);
   const errors = [];
   const file = path.basename(scriptPath);
 
@@ -70,7 +70,7 @@ function validate(scriptPath, xsdDir) {
       if (!types[m[1]]) {
         const s = suggest(m[1], Object.keys(types));
         errors.push({ file, line, col: 1,
-          msg: `@param {${m[1]}} ${m[3]}: type "${m[1]}" is not defined in any XSD`,
+          msg: `@param {${m[1]}} ${m[3]}: type "${m[1]}" is not defined in the type definitions`,
           hint: s ? `Did you mean "${s}"?` : null });
       }
     }
@@ -78,7 +78,7 @@ function validate(scriptPath, xsdDir) {
     if (retM && !types[retM[1]]) {
       const s = suggest(retM[1], Object.keys(types));
       errors.push({ file, line, col: 1,
-        msg: `@returns {${retM[1]}}: type "${retM[1]}" is not defined in any XSD`,
+        msg: `@returns {${retM[1]}}: type "${retM[1]}" is not defined in the type definitions`,
         hint: s ? `Did you mean "${s}"?` : null });
     }
     return { params, ret: retM ? retM[1] : null };
@@ -137,7 +137,7 @@ function validate(scriptPath, xsdDir) {
       if (!types[t] && t !== 'listOf') {
         const s = suggest(t, Object.keys(types));
         err(node.loc.start,
-          `new tw.object.${t}(): type "${t}" does not exist in the XSD definitions`,
+          `new tw.object.${t}(): type "${t}" does not exist in the type definitions`,
           s ? `Did you mean "${s}"? Available types: ${Object.keys(types).join(', ')}` :
               `Available types: ${Object.keys(types).join(', ')}`);
       }
@@ -182,15 +182,15 @@ function validate(scriptPath, xsdDir) {
 if (require.main === module) {
   const scriptPath = process.argv[2];
   if (!scriptPath) {
-    console.error('Usage: node validate.js <script.js> [xsdDir]');
+    console.error('Usage: node validate.js <script.js> [typesDir]');
     process.exit(2);
   }
-  const xsdDir = process.argv[3] || defaultXsdDir(scriptPath);
+  const typesDir = process.argv[3] || defaultTypesDir(scriptPath);
   let result;
   try {
-    result = validate(scriptPath, xsdDir);
+    result = validate(scriptPath, typesDir);
   } catch (e) {
-    console.error(`XSD ERROR: ${e.message}`);
+    console.error(`TYPE ERROR: ${e.message}`);
     process.exit(1);
   }
   const { errors, types } = result;

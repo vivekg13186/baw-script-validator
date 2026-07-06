@@ -2,7 +2,7 @@
 /**
  * Transform-code generator for IBM BAW (Rhino/ES5).
  *
- * Given a source and target business object type (from the XSDs), generates
+ * Given a source and target business object type (from the JSON type definitions), generates
  * a convert function that maps matching properties. Handles:
  *   - nested business objects (generates + reuses helper converters recursively)
  *   - BAW lists (maxOccurs > 1): new tw.object.listOf.X() + insertIntoList
@@ -11,11 +11,11 @@
  *
  * Output passes validate.js and is unit-testable with run-tests.js.
  *
- * Usage: node generate.js <SourceType> <TargetType> [xsdDir] [-o out.js]
+ * Usage: node generate.js <SourceType> <TargetType> [typesDir] [-o out.js]
  */
 const fs = require('fs');
 const path = require('path');
-const { loadTypes } = require('./lib/xsd');
+const { loadTypes } = require('./lib/types');
 
 const localName = (xsType) => xsType.replace(/^\w+:/, '');
 const isPrimitive = (xsType) => xsType.startsWith('xs:');
@@ -38,8 +38,8 @@ function generate(sourceType, targetType, types) {
     emitted.set(key, null); // reserve (guards against cycles)
 
     const src = types[S], tgt = types[T];
-    if (!src) throw new Error(`Source type "${S}" not found in XSDs`);
-    if (!tgt) throw new Error(`Target type "${T}" not found in XSDs`);
+    if (!src) throw new Error(`Source type "${S}" not found in the type definitions`);
+    if (!tgt) throw new Error(`Target type "${T}" not found in the type definitions`);
 
     const srcVar = S.charAt(0).toLowerCase() + S.slice(1);
     const lines = [];
@@ -125,14 +125,14 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const oIdx = args.indexOf('-o');
   const outFile = oIdx !== -1 ? args.splice(oIdx, 2)[1] : null;
-  const [sourceType, targetType, xsdDir] = args;
+  const [sourceType, targetType, typesDir] = args;
   if (!sourceType || !targetType) {
-    console.error('Usage: node generate.js <SourceType> <TargetType> [xsdDir] [-o out.js]');
+    console.error('Usage: node generate.js <SourceType> <TargetType> [typesDir] [-o out.js]');
     process.exit(2);
   }
   let code;
   try {
-    const types = loadTypes(xsdDir || '.');
+    const types = loadTypes(typesDir || (fs.existsSync('types') ? 'types' : '.'));
     code = generate(sourceType, targetType, types);
   } catch (e) {
     console.error(`ERROR: ${e.message}`);

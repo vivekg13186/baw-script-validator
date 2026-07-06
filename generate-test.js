@@ -3,16 +3,16 @@
  * Test-spec generator: scaffolds a run-tests.js JSON spec for a transform
  * function, given the function name, input type, and output type.
  *
- * Sample input values are generated from the input type's XSD (nested objects
+ * Sample input values are generated from the input type's definition (nested objects
  * and lists included). Expected values are derived by name-matching properties
  * (the standard transform convention) — review and adjust for any custom logic.
  *
- * Usage: node generate-test.js <functionName> <InputType> <OutputType> [xsdDir] [-o out.json]
- * Defaults: xsdDir = ./xsd (if present), output = ./test/<functionName>.test.json
+ * Usage: node generate-test.js <functionName> <InputType> <OutputType> [typesDir] [-o out.json]
+ * Defaults: typesDir = ./types (if present), output = ./test/<functionName>.test.json
  */
 const fs = require('fs');
 const path = require('path');
-const { loadTypes } = require('./lib/xsd');
+const { loadTypes } = require('./lib/types');
 
 const localName = (t) => t.replace(/^\w+:/, '');
 const isPrim = (t) => t.startsWith('xs:');
@@ -25,11 +25,11 @@ const SAMPLES = {
   'xs:date': () => '2026-01-15', 'xs:dateTime': () => '2026-01-15T10:00:00', 'xs:time': () => '10:00:00',
 };
 
-/** Generate a full sample value for a type from its XSD definition. */
+/** Generate a full sample value for a type from its definition. */
 function buildSample(typeName, types, depth) {
   if (depth > 5) return null; // guard against recursive types
   const def = types[typeName];
-  if (!def) throw new Error(`Type "${typeName}" not found in XSDs`);
+  if (!def) throw new Error(`Type "${typeName}" not found in the type definitions`);
   const obj = {};
   for (const [prop, d] of Object.entries(def.properties)) {
     const one = isPrim(d.xsType)
@@ -93,19 +93,19 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const oIdx = args.indexOf('-o');
   const outFile = oIdx !== -1 ? args.splice(oIdx, 2)[1] : null;
-  const [fnName, inputType, outputType, xsdDirArg] = args;
+  const [fnName, inputType, outputType, typesDirArg] = args;
   if (!fnName || !inputType || !outputType) {
-    console.error('Usage: node generate-test.js <functionName> <InputType> <OutputType> [xsdDir] [-o out.json]');
+    console.error('Usage: node generate-test.js <functionName> <InputType> <OutputType> [typesDir] [-o out.json]');
     process.exit(2);
   }
-  const xsdDir = xsdDirArg || (fs.existsSync('xsd') ? 'xsd' : '.');
+  const typesDir = typesDirArg || (fs.existsSync('types') ? 'types' : '.');
   try {
-    const types = loadTypes(xsdDir);
+    const types = loadTypes(typesDir);
     const spec = generateSpec(fnName, inputType, outputType, types);
     const out = outFile || path.join(fs.existsSync('test') ? 'test' : '.', `${fnName}.test.json`);
     fs.writeFileSync(out, JSON.stringify(spec, null, 2) + '\n');
-    console.log(`Wrote ${out} (${spec.cases.length} cases, types from ${xsdDir}/)`);
-    console.log(`Run: node run-tests.js <script.js> ${out} ${xsdDir}`);
+    console.log(`Wrote ${out} (${spec.cases.length} cases, types from ${typesDir}/)`);
+    console.log(`Run: node run-tests.js <script.js> ${out} ${typesDir}`);
   } catch (e) {
     console.error(`ERROR: ${e.message}`);
     process.exit(1);

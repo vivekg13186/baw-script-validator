@@ -3,10 +3,10 @@
  * Rhino-style unit-test runner for BAW transform scripts.
  *
  * Loads the script into a sandbox with a strict mock `tw` (built from the
- * XSDs), then runs test cases from a JSON spec. Runtime errors are reported
+ * type definitions), then runs test cases from a JSON spec. Runtime errors are reported
  * with the offending script line, extracted from the stack trace.
  *
- * Usage: node run-tests.js <script.js> <tests.json> [xsdDir]
+ * Usage: node run-tests.js <script.js> <tests.json> [typesDir]
  *
  * Test spec format:
  * {
@@ -20,7 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { loadTypes, defaultXsdDir } = require('./lib/xsd');
+const { loadTypes, defaultTypesDir } = require('./lib/types');
 const { buildTw, makeTyped } = require('./lib/mock-tw');
 
 function extractLine(err, scriptName) {
@@ -59,11 +59,11 @@ function compareDeep(actual, expected, pathStr, problems) {
   }
 }
 
-function run(scriptPath, specPath, xsdDir) {
+function run(scriptPath, specPath, typesDir) {
   const scriptName = path.basename(scriptPath);
   const src = fs.readFileSync(scriptPath, 'utf8');
   const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
-  const types = loadTypes(xsdDir);
+  const types = loadTypes(typesDir);
   const tw = buildTw(types);
 
   const sandbox = { tw };
@@ -117,15 +117,15 @@ function run(scriptPath, specPath, xsdDir) {
 }
 
 if (require.main === module) {
-  const [scriptPath, specPath, xsdDirArg] = process.argv.slice(2);
+  const [scriptPath, specPath, typesDirArg] = process.argv.slice(2);
   if (!scriptPath || !specPath) {
-    console.error('Usage: node run-tests.js <script.js> <tests.json> [xsdDir]');
+    console.error('Usage: node run-tests.js <script.js> <tests.json> [typesDir]');
     process.exit(2);
   }
   try {
-    run(scriptPath, specPath, xsdDirArg || defaultXsdDir(scriptPath));
+    run(scriptPath, specPath, typesDirArg || defaultTypesDir(scriptPath));
   } catch (e) {
-    console.error(`XSD ERROR: ${e.message}`);
+    console.error(`TYPE ERROR: ${e.message}`);
     process.exit(1);
   }
 }
