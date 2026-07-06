@@ -1,0 +1,27 @@
+{
+  "function": "convertAddressWsToAddress",
+  "cases": [
+    {
+      "name": "full address maps all fields",
+      "input": {
+        "type": "AddressWS",
+        "value": { "line1": "10 Downing St", "line2": "Westminster", "line3": "London", "postcode": "SW1A 2AA", "type": "home" }
+      },
+      "expect": {
+        "type": "Address",
+        "value": { "line1": "10 Downing St", "line2": "Westminster", "postcode": "SW1A 2AA", "type": "home" }
+      }
+    },
+    {
+      "name": "minimal address (only line1 + postcode)",
+      "input": {
+        "type": "AddressWS",
+        "value": { "line1": "1 Main St", "postcode": "AB1 2CD" }
+      },
+      "expect": {
+        "type": "Address",
+        "value": { "line1": "1 Main St", "line2": null, "postcode": "AB1 2CD", "type": null }
+      }
+    }
+  ]
+}

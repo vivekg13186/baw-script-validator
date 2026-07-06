@@ -1,0 +1,13 @@
+{
+  "name": "baw-script-validator",
+  "version": "1.0.0",
+  "description": "Static validation + Rhino-style unit testing for IBM BAW server-side JavaScript transforms, driven by XSD business object definitions",
+  "scripts": {
+    "validate": "node validate.js sample.js",
+    "test": "node run-tests.js sample.js sample.test.json"
+  },
+  "dependencies": {
+    "acorn": "^8.17.0",
+    "acorn-walk": "^8.3.5"
+  }
+}
