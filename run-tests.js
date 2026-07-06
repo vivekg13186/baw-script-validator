@@ -31,6 +31,34 @@ function extractLine(err, scriptName) {
   return m || null;
 }
 
+/** Deep-compare a typed result against plain-JSON expected values. */
+function compareDeep(actual, expected, pathStr, problems) {
+  if (expected === null || typeof expected !== 'object') {
+    if (actual !== expected)
+      problems.push(`${pathStr}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    return;
+  }
+  if (Array.isArray(expected)) {
+    const len = actual == null ? 0 : (actual.listLength !== undefined ? actual.listLength : actual.length);
+    if (len !== expected.length) {
+      problems.push(`${pathStr}: expected list of ${expected.length}, got ${actual == null ? 'null' : len}`);
+      return;
+    }
+    expected.forEach((v, i) => compareDeep(actual[i], v, `${pathStr}[${i}]`, problems));
+    return;
+  }
+  if (actual == null) {
+    problems.push(`${pathStr}: expected an object, got ${JSON.stringify(actual)}`);
+    return;
+  }
+  for (const [k, v] of Object.entries(expected)) {
+    let a;
+    try { a = actual[k]; }
+    catch (e) { problems.push(`reading ${pathStr}.${k}: ${e.message}`); continue; }
+    compareDeep(a, v, `${pathStr}.${k}`, problems);
+  }
+}
+
 function run(scriptPath, specPath, xsdDir) {
   const scriptName = path.basename(scriptPath);
   const src = fs.readFileSync(scriptPath, 'utf8');
@@ -61,7 +89,7 @@ function run(scriptPath, specPath, xsdDir) {
     const label = tc.name || JSON.stringify(tc.input.value);
     let result;
     try {
-      const input = makeTyped(tw, tc.input.type, tc.input.value);
+      const input = makeTyped(tw, types, tc.input.type, tc.input.value);
       result = fn(input);
     } catch (e) {
       const line = extractLine(e, scriptName);
@@ -71,16 +99,11 @@ function run(scriptPath, specPath, xsdDir) {
       continue;
     }
 
-    // Compare result to expected
+    // Compare result to expected (deep: nested objects and lists)
     const problems = [];
     if (tc.expect.type && result && result.__type__ !== tc.expect.type)
       problems.push(`expected result type "${tc.expect.type}", got "${result && result.__type__}"`);
-    for (const [k, v] of Object.entries(tc.expect.value || {})) {
-      let actual;
-      try { actual = result[k]; }
-      catch (e) { problems.push(`reading result.${k}: ${e.message}`); continue; }
-      if (actual !== v) problems.push(`result.${k}: expected ${JSON.stringify(v)}, got ${JSON.stringify(actual)}`);
-    }
+    compareDeep(result, tc.expect.value || {}, 'result', problems);
     if (problems.length === 0) { console.log(`PASS  ${label}`); passed++; }
     else {
       console.log(`FAIL  ${label}`);

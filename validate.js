@@ -27,41 +27,64 @@ function validate(scriptPath, xsdDir) {
     errors.push({ file, line: loc.line, col: loc.column + 1, msg, hint });
 
   // --- 1. Parse as ES5 (Rhino in BAW is ES5-level) ---
+  const comments = [];
   let ast;
   try {
-    ast = acorn.parse(src, { ecmaVersion: 5, locations: true });
+    ast = acorn.parse(src, {
+      ecmaVersion: 5, locations: true,
+      onComment: (block, text, start, end, startLoc) => {
+        if (block) comments.push({ text, end, line: startLoc.line });
+      },
+    });
   } catch (e) {
     err(e.loc, `Syntax error (not Rhino/ES5 compatible): ${e.message.replace(/\s*\(\d+:\d+\)$/, '')}`);
     return { errors, types };
   }
 
-  // --- JSDoc: map param/return names to declared types ---
-  const jsdocTypes = {}; // paramName -> TypeName
-  let jsdocReturn = null;
-  const docRe = /@param\s*\{(\w+)(\[\])?\}\s*(\w+)/g;
-  let m;
-  while ((m = docRe.exec(src)) !== null) jsdocTypes[m[3]] = m[1];
-  const retM = /@returns?\s*\{(\w+)(\[\])?\}/.exec(src);
-  if (retM) jsdocReturn = retM[1];
+  // --- Per-function scopes: JSDoc @param/@returns from the doc block just above each function ---
+  const scopes = new Map(); // funcNode -> { varTypes: {}, jsdocReturn: string|null }
+  const globalScope = { varTypes: {}, jsdocReturn: null };
 
-  // varName -> TypeName (single function scope is typical for BAW transforms)
-  const varTypes = Object.assign({}, jsdocTypes);
-
-  // Validate JSDoc-declared types themselves
-  for (const [name, t] of Object.entries(jsdocTypes)) {
-    if (!types[t]) {
-      const s = suggest(t, Object.keys(types));
-      errors.push({ file, line: 1, col: 1,
-        msg: `@param {${t}} ${name}: type "${t}" is not defined in any XSD`,
+  const parseJsdoc = (text, line) => {
+    const params = {};
+    const docRe = /@param\s*\{(\w+)(\[\])?\}\s*(\w+)/g;
+    let m;
+    while ((m = docRe.exec(text)) !== null) {
+      params[m[3]] = m[1];
+      if (!types[m[1]]) {
+        const s = suggest(m[1], Object.keys(types));
+        errors.push({ file, line, col: 1,
+          msg: `@param {${m[1]}} ${m[3]}: type "${m[1]}" is not defined in any XSD`,
+          hint: s ? `Did you mean "${s}"?` : null });
+      }
+    }
+    const retM = /@returns?\s*\{(\w+)(\[\])?\}/.exec(text);
+    if (retM && !types[retM[1]]) {
+      const s = suggest(retM[1], Object.keys(types));
+      errors.push({ file, line, col: 1,
+        msg: `@returns {${retM[1]}}: type "${retM[1]}" is not defined in any XSD`,
         hint: s ? `Did you mean "${s}"?` : null });
     }
+    return { params, ret: retM ? retM[1] : null };
+  };
+
+  walk.simple(ast, {
+    FunctionDeclaration(node) { scopes.set(node, null); },
+    FunctionExpression(node) { scopes.set(node, null); },
+  });
+  for (const funcNode of scopes.keys()) {
+    // nearest block comment ending before the function starts
+    const doc = comments.filter(c => c.end <= funcNode.start).sort((a, b) => b.end - a.end)[0];
+    const parsed = doc ? parseJsdoc(doc.text, doc.line) : { params: {}, ret: null };
+    scopes.set(funcNode, { varTypes: Object.assign({}, parsed.params), jsdocReturn: parsed.ret });
   }
-  if (jsdocReturn && !types[jsdocReturn]) {
-    const s = suggest(jsdocReturn, Object.keys(types));
-    errors.push({ file, line: 1, col: 1,
-      msg: `@returns {${jsdocReturn}}: type "${jsdocReturn}" is not defined in any XSD`,
-      hint: s ? `Did you mean "${s}"?` : null });
-  }
+
+  const scopeOf = (ancestors) => {
+    for (let i = ancestors.length - 1; i >= 0; i--) {
+      if (scopes.has(ancestors[i])) return scopes.get(ancestors[i]);
+    }
+    return globalScope;
+  };
 
   const isTwObjectNew = (node) =>
     node.type === 'NewExpression' &&
@@ -72,17 +95,17 @@ function validate(scriptPath, xsdDir) {
     node.callee.object.property.name === 'object' &&
     node.callee.property.type === 'Identifier';
 
-  // --- Pass 1: collect variable types from `var x = new tw.object.T()` ---
+  // --- Pass 1: collect variable types from `var x = new tw.object.T()` (per scope) ---
   // If T is unknown, fall back to the closest real type so property checks still run.
   const resolveType = (t) => types[t] ? t : (suggest(t, Object.keys(types)) || t);
-  walk.simple(ast, {
-    VariableDeclarator(node) {
+  walk.ancestor(ast, {
+    VariableDeclarator(node, _s, ancestors) {
       if (node.init && isTwObjectNew(node.init))
-        varTypes[node.id.name] = resolveType(node.init.callee.property.name);
+        scopeOf(ancestors).varTypes[node.id.name] = resolveType(node.init.callee.property.name);
     },
-    AssignmentExpression(node) {
+    AssignmentExpression(node, _s, ancestors) {
       if (node.left.type === 'Identifier' && isTwObjectNew(node.right))
-        varTypes[node.left.name] = resolveType(node.right.callee.property.name);
+        scopeOf(ancestors).varTypes[node.left.name] = resolveType(node.right.callee.property.name);
     },
   });
 
@@ -108,7 +131,7 @@ function validate(scriptPath, xsdDir) {
       if (node.object.type !== 'Identifier') return;   // only direct var.prop
       const varName = node.object.name;
       if (varName === 'tw') return;                    // tw.local / tw.object etc.
-      const typeName = varTypes[varName];
+      const typeName = scopeOf(ancestors).varTypes[varName];
       if (!typeName || !types[typeName]) return;       // untyped var — skip
       const prop = node.property.name;
       if (types[typeName].properties[prop]) return;    // valid
@@ -123,13 +146,14 @@ function validate(scriptPath, xsdDir) {
         s ? `Did you mean "${varName}.${s}"? "${typeName}" has: ${Object.keys(types[typeName].properties).join(', ')}` :
             `"${typeName}" has: ${Object.keys(types[typeName].properties).join(', ')}`);
     },
-    ReturnStatement(node) {
-      // return variable whose type mismatches @returns
-      if (!jsdocReturn || !node.argument || node.argument.type !== 'Identifier') return;
-      const t = varTypes[node.argument.name];
-      if (t && types[jsdocReturn] && t !== jsdocReturn && types[t]) {
+    ReturnStatement(node, _state, ancestors) {
+      // return variable whose type mismatches this function's @returns
+      const scope = scopeOf(ancestors);
+      if (!scope.jsdocReturn || !node.argument || node.argument.type !== 'Identifier') return;
+      const t = scope.varTypes[node.argument.name];
+      if (t && types[scope.jsdocReturn] && t !== scope.jsdocReturn && types[t]) {
         err(node.loc.start,
-          `Function returns "${t}" but JSDoc declares @returns {${jsdocReturn}}`);
+          `Function returns "${t}" but JSDoc declares @returns {${scope.jsdocReturn}}`);
       }
     },
   });

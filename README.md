@@ -2,6 +2,17 @@
 
 Verifies IBM BAW server-side JavaScript transform functions (Rhino engine) against the business object definitions in your `.xsd` files. Two layers:
 
+## Code generation
+
+`generate.js` writes the transform for you from the XSDs, including nested business objects and BAW lists:
+
+```bash
+node generate.js <SourceType> <TargetType> [xsdDir] [-o out.js]
+node generate.js CustomerWS Customer examples -o examples/convertCustomerWsToCustomer.js
+```
+
+Nested complex types get their own helper converters (generated recursively and reused); `maxOccurs="unbounded"` properties become `tw.object.listOf.X` with an `insertIntoList` loop; unmatched properties are flagged with `// TODO` / `// NOTE` comments. Generated code is ES5/Rhino-safe and passes `validate.js`. See `examples/` for a nested Customer/CustomerWS demo with tests.
+
 1. **Static analysis** (`validate.js`) — parses the script as ES5 (Rhino-compatible) and checks every `new tw.object.X()` and every property read/write against the XSD types. No execution needed; reports all errors at once with line numbers and fix hints.
 2. **Runtime unit tests** (`run-tests.js`) — loads the script into a sandbox with a strict mock `tw.object` (built from the XSDs, mimicking BAW's typed business objects: unknown properties/types throw, `xs:` primitive types are checked). Runs test cases from a JSON spec.
 

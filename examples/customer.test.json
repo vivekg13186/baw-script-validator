@@ -1,0 +1,45 @@
+{
+  "function": "convertCustomerWSToCustomer",
+  "cases": [
+    {
+      "name": "customer with nested home address and 2 other addresses",
+      "input": {
+        "type": "CustomerWS",
+        "value": {
+          "name": "Vivek",
+          "age": 30,
+          "homeAddress": { "line1": "10 Downing St", "line2": "Westminster", "line3": "London", "postcode": "SW1A 2AA", "type": "home" },
+          "otherAddresses": [
+            { "line1": "1 Work Rd", "postcode": "EC1A 1BB", "type": "work" },
+            { "line1": "2 Holiday Ln", "postcode": "TR26 1AB", "type": "holiday" }
+          ],
+          "internalRef": "X-123"
+        }
+      },
+      "expect": {
+        "type": "Customer",
+        "value": {
+          "name": "Vivek",
+          "age": 30,
+          "homeAddress": { "line1": "10 Downing St", "line2": "Westminster", "postcode": "SW1A 2AA", "type": "home" },
+          "otherAddresses": [
+            { "line1": "1 Work Rd", "postcode": "EC1A 1BB", "type": "work" },
+            { "line1": "2 Holiday Ln", "postcode": "TR26 1AB", "type": "holiday" }
+          ],
+          "customerId": null
+        }
+      }
+    },
+    {
+      "name": "null nested address stays null, empty list",
+      "input": {
+        "type": "CustomerWS",
+        "value": { "name": "Anon" }
+      },
+      "expect": {
+        "type": "Customer",
+        "value": { "name": "Anon", "age": null, "homeAddress": null, "otherAddresses": [] }
+      }
+    }
+  ]
+}
